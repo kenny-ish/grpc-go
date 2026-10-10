@@ -292,6 +292,24 @@ func newHandleStreamTest(t *testing.T, statsHandler stats.Handler) *handleStream
 	}
 }
 
+func (s) TestHandlerTransport_HandleStreams_ClientAdvertisedCompressors(t *testing.T) {
+	st := newHandleStreamTest(t, nil)
+	st.ht.req.Header["Grpc-Accept-Encoding"] = []string{"gzip", "zstd"}
+	gotCompressors := make(chan []string, 1)
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTestTimeout)
+	defer cancel()
+	st.ht.HandleStreams(ctx, func(stream *ServerStream) {
+		go func() {
+			gotCompressors <- stream.ClientAdvertisedCompressors()
+			st.bodyw.Close()
+			stream.WriteStatus(status.New(codes.OK, ""))
+		}()
+	})
+	if got, want := <-gotCompressors, []string{"gzip", "zstd"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("ClientAdvertisedCompressors() = %v, want %v", got, want)
+	}
+}
+
 func (s) TestHandlerTransport_HandleStreams(t *testing.T) {
 	st := newHandleStreamTest(t, nil)
 	handleStream := func(s *ServerStream) {
